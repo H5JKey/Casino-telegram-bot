@@ -2,7 +2,6 @@ import telebot
 import time
 import os
 from dotenv import load_dotenv
-import threading
 
 from database import *
 from rooms import *
@@ -142,6 +141,7 @@ def throw_command(message):
 						
 						#если все игроки уже кинули кубик
 						if (room.players[0].bet>0 and room.players[1].bet>0):
+							time.sleep(0.5)
 							if (room.players[1].score > room.players[0].score):
 								handle_game_result(room.players[1], room.players[0])
 							elif (room.players[0].score < room.players[1].score):
@@ -197,6 +197,7 @@ def roll_command(message):
 				elif (points >= num):
 					points -= num
 					rolled = roll(message.chat.id)
+					time.sleep(0.5)
 					points += rolled * num
 					if (rolled > 0):
 						bot.send_message(
