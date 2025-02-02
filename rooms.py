@@ -1,10 +1,9 @@
 class Player:
-	id = 0
-	score = 0
-	bet = 0
-
-	def __init__(self, id):
+	def __init__(self, id, chat_id):
 		self.id = id
+		self.bet=0
+		self.score=0
+		self.chat_id=chat_id
 
 
 class Room:
@@ -14,6 +13,8 @@ class Room:
 
 	def __init__(self, id):
 		self.id = id
+		self.players=[]
+		self.started=False
 
 
 def find_room_by_id(id, rooms):

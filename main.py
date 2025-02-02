@@ -2,6 +2,7 @@ import telebot
 import time
 import os
 from dotenv import load_dotenv
+import threading
 
 from database import *
 from rooms import *
@@ -11,6 +12,7 @@ from rooms import *
 load_dotenv()
 bot = telebot.TeleBot(os.getenv('API_KEY'))
 rooms = []
+
 
 
 
@@ -31,7 +33,6 @@ def roll(chat_id):
 @bot.message_handler(commands=['create'])
 def create_room(message):
 	args = message.text.split()
-	print(len(rooms))
 	if len(args) != 2:
 		bot.send_message(message.chat.id, "Ошибка!")
 	else:
@@ -45,12 +46,9 @@ def create_room(message):
 				bot.send_message(message.chat.id, "Такая комната уже есть!")
 			else:
 				room = Room(room_id)
-				room.players.append(Player(message.chat.id))
+				room.players.append(Player(message.from_user.id,message.chat.id))
 				rooms.append(room)
 				bot.send_message(message.chat.id, "Вы успешно создали комнату. Ожидаем соперника...")
-				#while (len(room.players)<2):
-				#    time.sleep(0.2)
-				#bot.send_message(message.chat.id, "Соперник подключился. Игра началась!")
 
 				
 
@@ -67,16 +65,47 @@ def join_room(message):
 		else:
 			room_id = args[1]
 			room = find_room_by_id(room_id, rooms)
-			print(room)
 			if (room is None):
 				bot.send_message(message.chat.id, "Такой комнаты нет!")
 			else:
-				room.players.append(Player(message.chat.id))
+				room.players.append(Player(message.from_user.id, message.chat.id))
 				room.started = True
 				bot.send_message(message.chat.id,
-						 "Вы присоедились к комнате. Игра началась!")
+						 "Вы присоедились к комнате")
+				if (len(room.players)==2):
+					for player in room.players:
+						bot.send_message(player.chat_id, "Игра началась!")
 
 
+
+def handle_game_result(winner, loser):
+	diff = min(loser.bet,winner.bet * 2)
+
+	#обрабатываем проигравшего
+	loser_points=get_data(loser.id)[0]
+	update_points(loser.id, loser_points-diff)
+	bot.send_message(
+		loser.chat_id,
+		f"Ваш противник выкинул {winner.score}. Вы проиграли {diff} монет!"
+	)
+	bot.send_message(
+		loser.chat_id,
+		f"Теперь у вас {str(loser_points-diff)} монет"
+	)
+
+	#обрабатываем победителя
+	winner_points=get_data(winner.id)[0]
+	update_points(winner.id, winner_points+diff)
+	bot.send_message(
+		winner.chat_id,
+		f"Ваш противник выкинул {loser.score}. Вы выиграли {diff} монет!"
+	)
+	bot.send_message(
+		winner.chat_id,
+		f"Теперь у вас {str(winner_points+diff)} монет"
+	)
+	
+	
 
 @bot.message_handler(commands=['throw'])
 def throw_command(message):
@@ -110,41 +139,24 @@ def throw_command(message):
 						bot.send_message(
 						    message.chat.id,
 						    f"Вы поставили {num} монет. Ожидаем второго игрока!")
-						time.sleep(2)
-						while (room.players[0].score == 0 or room.players[1].score == 0):
-							time.sleep(0.1)
-
-						if (room.players[user_index].score
-						    > room.players[(user_index + 1) % 2].score):
-							diff = min(room.players[(user_index + 1) % 2].bet,
-								   room.players[user_index].bet * 2)
-							points += diff
-							bot.send_message(
-							    message.chat.id,
-							    f"Ваш противник выкинул {room.players[(user_index+1)%2].score}. Вы выиграли {diff} монет!"
-							)
-						elif (room.players[user_index].score
-						      < room.players[(user_index + 1) % 2].score):
-							diff = min(room.players[(user_index + 1) % 2].bet * 2,
-								   room.players[user_index].bet)
-							points -= diff
-							bot.send_message(
-							    message.chat.id,
-							    f"Ваш противник выкинул {room.players[(user_index+1)%2].score}. Вы Проиграли {diff} монет!"
-							)
-						else:
-							bot.send_message(
-							    message.chat.id,
-							    "Ваш противник выкинул столько же сколько и вы. Ничего не произошло"
-							)
-						update_points(message.from_user.id, points)
-						bot.send_message(message.chat.id,
-								 f"Теперь у вас {str(points)} монет")
-						time.sleep(3)
-						room.players[0].score = 0
-						room.players[0].bet = 0
-						room.players[1].score = 0
-						room.players[1].bet = 0
+						
+						#если все игроки уже кинули кубик
+						if (room.players[0].bet>0 and room.players[1].bet>0):
+							if (room.players[1].score > room.players[0].score):
+								handle_game_result(room.players[1], room.players[0])
+							elif (room.players[0].score < room.players[1].score):
+								handle_game_result(room.players[0], room.players[1])
+							else:
+								for i in range(0,2):
+									bot.send_message(
+										room.players[i].chat_id,
+										"Ваш противник выкинул столько же сколько и вы. Ничего не произошло"
+									)
+							#перезапускаем игру
+							room.players[0].score = 0
+							room.players[0].bet = 0
+							room.players[1].score = 0
+							room.players[1].bet = 0
 					else:
 						bot.send_message(
 						    message.chat.id,
@@ -161,8 +173,8 @@ def leave_room(message):
 		bot.send_message(message.chat.id, "Вы не в комнате!")
 	else:
 		room.players.clear()
-		room.id=0
-		del room
+		room.id=None
+		rooms.remove(room)
 		bot.send_message(message.chat.id,
 				 "Вы вышли из комнаты! Комната будет удалена")
 
@@ -185,7 +197,6 @@ def roll_command(message):
 				elif (points >= num):
 					points -= num
 					rolled = roll(message.chat.id)
-					time.sleep(0.5)
 					points += rolled * num
 					if (rolled > 0):
 						bot.send_message(
@@ -262,4 +273,4 @@ def show_top(message):
 		bot.send_message(message.chat.id, out_message)
 
 
-bot.polling()
+bot.polling(none_stop=True)
