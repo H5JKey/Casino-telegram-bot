@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 
 
+
 class Player:
 	id = 0
 	score = 0
@@ -63,7 +64,7 @@ def get_data(user_id):
 			return result
 		else:
 			cursor.execute("INSERT INTO users (id, points, time) VALUES (?, ?, ?)",
-			               (user_id, 100, 0))
+				       (user_id, 100, 0))
 			conn.commit()
 			return (100, 0)
 	except sqlite3.Error as e:
@@ -105,7 +106,7 @@ def update_points(user_id, points):
 		cursor = conn.cursor()
 
 		cursor.execute("UPDATE users SET points = ? WHERE id = ?",
-		               (points, user_id))
+			       (points, user_id))
 
 		conn.commit()
 	except sqlite3.Error as e:
@@ -162,7 +163,11 @@ def create_room(message):
 				room = Room(room_id)
 				room.players.append(Player(message.chat.id))
 				rooms.append(room)
-				bot.send_message(message.chat.id, "Вы успешно создали комнату")
+				bot.send_message(message.chat.id, "Вы успешно создали комнату. Ожидаем соперника...")
+				while (len(room.players)!=2):
+				    time.sleep(0.2)
+				bot.send_message(message.chat.id, "Соперник подключился. Игра началась!")
+				
 
 
 @bot.message_handler(commands=['join'])
@@ -173,6 +178,7 @@ def join_room(message):
 	else:
 		room = find_room_by_player(message.from_user.id)
 		if (room is not None):
+			print(room.id)
 			bot.send_message(message.chat.id, "Вы уже состоите в другой комнате!")
 		else:
 			room_id = args[1]
@@ -183,7 +189,8 @@ def join_room(message):
 				room.players.append(Player(message.chat.id))
 				room.started = True
 				bot.send_message(message.chat.id,
-				                 "Вы присоедились к комнате. Игра началась!")
+						 "Вы присоедились к комнате. Игра началась!")
+
 
 
 @bot.message_handler(commands=['throw'])
@@ -195,7 +202,7 @@ def throw_command(message):
 		room = find_room_by_player(message.from_user.id)
 		if (room is None or not room.started):
 			bot.send_message(message.chat.id,
-			                 "Вы не в комнате или игра еще не началась!")
+					 "Вы не в комнате или игра еще не началась!")
 		else:
 			data = get_data(message.from_user.id)
 			if (data is not None):
@@ -225,7 +232,7 @@ def throw_command(message):
 						if (room.players[user_index].score
 						    > room.players[(user_index + 1) % 2].score):
 							diff = min(room.players[(user_index + 1) % 2].bet,
-							           room.players[user_index].bet * 2)
+								   room.players[user_index].bet * 2)
 							points += diff
 							bot.send_message(
 							    message.chat.id,
@@ -234,7 +241,7 @@ def throw_command(message):
 						elif (room.players[user_index].score
 						      < room.players[(user_index + 1) % 2].score):
 							diff = min(room.players[(user_index + 1) % 2].bet * 2,
-							           room.players[user_index].bet)
+								   room.players[user_index].bet)
 							points -= diff
 							bot.send_message(
 							    message.chat.id,
@@ -247,7 +254,7 @@ def throw_command(message):
 							)
 						update_points(message.from_user.id, points)
 						bot.send_message(message.chat.id,
-						                 f"Теперь у вас {str(points)} монет")
+								 f"Теперь у вас {str(points)} монет")
 						time.sleep(3)
 						room.players[0].score = 0
 						room.players[0].bet = 0
@@ -268,9 +275,10 @@ def leave_room(message):
 	if (room is None):
 		bot.send_message(message.chat.id, "Вы не в комнате!")
 	else:
+		room.players.clear()
 		rooms.remove(room)
 		bot.send_message(message.chat.id,
-		                 "Вы вышли из комнаты! Комната будет удалена")
+				 "Вы вышли из комнаты! Комната будет удалена")
 
 
 @bot.message_handler(commands=['roll'])
