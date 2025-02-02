@@ -144,7 +144,7 @@ def throw_command(message):
 							time.sleep(0.5)
 							if (room.players[1].score > room.players[0].score):
 								handle_game_result(room.players[1], room.players[0])
-							elif (room.players[0].score < room.players[1].score):
+							elif (room.players[0].score > room.players[1].score):
 								handle_game_result(room.players[0], room.players[1])
 							else:
 								for i in range(0,2):
@@ -225,7 +225,7 @@ def add_money(message):
 		points, time = data
 		current_time = message.date
 		if (current_time - time >= cooldown):
-			points += 100
+			points += 1000
 			bot.send_message(
 			    message.chat.id,
 			    f"Вы пополнили 100 монет! Теперь у вас {str(points)} монет")
