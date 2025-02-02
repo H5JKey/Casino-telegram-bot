@@ -1,135 +1,18 @@
 import telebot
-import sqlite3
 import time
 import os
 from dotenv import load_dotenv
 
+from database import *
+from rooms import *
 
 
-class Player:
-	id = 0
-	score = 0
-	bet = 0
-
-	def __init__(self, id):
-		self.id = id
-
-
-class Room:
-	id = 0
-	players = []
-	started = False
-
-	def __init__(self, id):
-		self.id = id
 
 load_dotenv()
 bot = telebot.TeleBot(os.getenv('API_KEY'))
 rooms = []
 
 
-def find_room_by_id(id):
-	for room in rooms:
-		if room.id == id:
-			return room
-	return None
-
-
-def find_room_by_player(player_id):
-	for room in rooms:
-		for player in room.players:
-			if player.id == player_id:
-				return room
-	return None
-
-
-def get_data(user_id):
-	conn = None
-	try:
-		conn = sqlite3.connect('users.db')
-		cursor = conn.cursor()
-
-		cursor.execute('''
-				CREATE TABLE IF NOT EXISTS users (
-						id INTEGER PRIMARY KEY,
-						points INTEGER,
-						time INTEGER
-				)
-		''')
-
-		cursor.execute("SELECT points, time FROM users WHERE id = ?", (user_id, ))
-		result = cursor.fetchone()
-
-		if result:
-			return result
-		else:
-			cursor.execute("INSERT INTO users (id, points, time) VALUES (?, ?, ?)",
-				       (user_id, 100, 0))
-			conn.commit()
-			return (100, 0)
-	except sqlite3.Error as e:
-		print(f"An error occurred: {e}")
-		return None
-	finally:
-		if conn:
-			conn.close()
-
-
-def get_alldata():
-	conn = None
-	try:
-		conn = sqlite3.connect('users.db')
-		cursor = conn.cursor()
-
-		cursor.execute('''
-				CREATE TABLE IF NOT EXISTS users (
-						id INTEGER PRIMARY KEY,
-						points INTEGER,
-						time INTEGER
-				)
-		''')
-		cursor.execute("SELECT * FROM users")
-		result = cursor.fetchall()
-		return result
-	except sqlite3.Error as e:
-		print(f"An error occurred: {e}")
-		return None
-	finally:
-		if conn:
-			conn.close()
-
-
-def update_points(user_id, points):
-	conn = None
-	try:
-		conn = sqlite3.connect('users.db')
-		cursor = conn.cursor()
-
-		cursor.execute("UPDATE users SET points = ? WHERE id = ?",
-			       (points, user_id))
-
-		conn.commit()
-	except sqlite3.Error as e:
-		print(f"An error occurred: {e}")
-	finally:
-		if conn:
-			conn.close()
-
-
-def update_time(user_id, time):
-	conn = None
-	try:
-		conn = sqlite3.connect('users.db')
-		cursor = conn.cursor()
-
-		cursor.execute("UPDATE users SET time = ? WHERE id = ?", (time, user_id))
-
-		conn.commit()
-	except sqlite3.Error as e:
-		print(f"An error occurred: {e}")
-	finally:
-		if conn:
-			conn.close()
 
 
 def roll(chat_id):
@@ -148,15 +31,16 @@ def roll(chat_id):
 @bot.message_handler(commands=['create'])
 def create_room(message):
 	args = message.text.split()
+	print(len(rooms))
 	if len(args) != 2:
 		bot.send_message(message.chat.id, "Ошибка!")
 	else:
-		room = find_room_by_player(message.from_user.id)
+		room = find_room_by_player(message.from_user.id,rooms)
 		if (room is not None):
 			bot.send_message(message.chat.id, "Вы уже состоите в другой комнате!")
 		else:
 			room_id = args[1]
-			room = find_room_by_id(room_id)
+			room = find_room_by_id(room_id, rooms)
 			if (room is not None):
 				bot.send_message(message.chat.id, "Такая комната уже есть!")
 			else:
@@ -164,9 +48,10 @@ def create_room(message):
 				room.players.append(Player(message.chat.id))
 				rooms.append(room)
 				bot.send_message(message.chat.id, "Вы успешно создали комнату. Ожидаем соперника...")
-				while (len(room.players)!=2):
-				    time.sleep(0.2)
-				bot.send_message(message.chat.id, "Соперник подключился. Игра началась!")
+				#while (len(room.players)<2):
+				#    time.sleep(0.2)
+				#bot.send_message(message.chat.id, "Соперник подключился. Игра началась!")
+
 				
 
 
@@ -176,13 +61,13 @@ def join_room(message):
 	if len(args) != 2:
 		bot.send_message(message.chat.id, "Ошибка!")
 	else:
-		room = find_room_by_player(message.from_user.id)
+		room = find_room_by_player(message.from_user.id, rooms)
 		if (room is not None):
-			print(room.id)
 			bot.send_message(message.chat.id, "Вы уже состоите в другой комнате!")
 		else:
 			room_id = args[1]
-			room = find_room_by_id(room_id)
+			room = find_room_by_id(room_id, rooms)
+			print(room)
 			if (room is None):
 				bot.send_message(message.chat.id, "Такой комнаты нет!")
 			else:
@@ -199,7 +84,7 @@ def throw_command(message):
 	if len(args) != 2:
 		bot.send_message(message.chat.id, "Ошибка!")
 	else:
-		room = find_room_by_player(message.from_user.id)
+		room = find_room_by_player(message.from_user.id, rooms)
 		if (room is None or not room.started):
 			bot.send_message(message.chat.id,
 					 "Вы не в комнате или игра еще не началась!")
@@ -271,12 +156,13 @@ def throw_command(message):
 
 @bot.message_handler(commands=['leave'])
 def leave_room(message):
-	room = find_room_by_player(message.from_user.id)
+	room = find_room_by_player(message.from_user.id, rooms)
 	if (room is None):
 		bot.send_message(message.chat.id, "Вы не в комнате!")
 	else:
 		room.players.clear()
-		rooms.remove(room)
+		room.id=0
+		del room
 		bot.send_message(message.chat.id,
 				 "Вы вышли из комнаты! Комната будет удалена")
 
