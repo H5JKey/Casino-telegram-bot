@@ -7,10 +7,6 @@ class Player:
 
 
 class Room:
-	id = 0
-	players = []
-	started = False
-
 	def __init__(self, id):
 		self.id = id
 		self.players=[]
