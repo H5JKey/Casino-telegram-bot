@@ -1,4 +1,4 @@
-#Casino_bot
+# Casino_bot
 
 https://t.me/Casino_roll_bot
 Telegram bot which can spin the roulette, accept bets, etc.
