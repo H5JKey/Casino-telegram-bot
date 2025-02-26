@@ -19,7 +19,7 @@ rooms = []
 def roll(chat_id):
 	value = bot.send_dice(chat_id, "🎰").dice.value
 	MAX = 64
-	value = (value - 1) / MAX
+	value = 1 - (value - 1) / MAX
 	probabilities = {30: 0.01, 15: 0.02, 5: 0.05, 2: 0.1, 1: 0.2}
 	cumulative_prob = 0
 	for result_value, prob in probabilities.items():
@@ -225,7 +225,7 @@ def add_money(message):
 		points, time = data
 		current_time = message.date
 		if (current_time - time >= cooldown):
-			points += 1000
+			points += 100
 			bot.send_message(
 			    message.chat.id,
 			    f"Вы пополнили 100 монет! Теперь у вас {str(points)} монет")
